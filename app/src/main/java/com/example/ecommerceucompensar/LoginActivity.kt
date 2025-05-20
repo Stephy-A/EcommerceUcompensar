@@ -30,9 +30,9 @@ class LoginActivity : AppCompatActivity() {
             }
 
             // TODO: Implement actual login logic here
-            val intent = Intent(this, ProductListActivity
-            ::class.java)
+            val intent = Intent(this, ProductListActivity::class.java)
             startActivity(intent)
+            finish() // Cierra la actividad de login para que el usuario no pueda volver atrás
         }
     }
 
