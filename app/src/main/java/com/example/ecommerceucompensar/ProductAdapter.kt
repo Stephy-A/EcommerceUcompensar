@@ -3,30 +3,17 @@ package com.example.ecommerceucompensar
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import com.example.ecommerceucompensar.data.Product
 import com.example.ecommerceucompensar.databinding.ItemProductBinding
 
 class ProductAdapter(
-    private val products: List<Product>,
-    private val onAddToCart: (Product) -> Unit
+    private var products: List<Product>,
+    private val onProductClick: (Product) -> Unit
 ) : RecyclerView.Adapter<ProductAdapter.ProductViewHolder>() {
 
-    class ProductViewHolder(
-        private val binding: ItemProductBinding,
-        private val onAddToCart: (Product) -> Unit
-    ) : RecyclerView.ViewHolder(binding.root) {
-        
-        fun bind(product: Product) {
-            binding.tvProductName.text = product.name
-            binding.tvProductDescription.text = product.description
-            binding.tvProductPrice.text = "$${product.price}"
-            
-            // Usar la imagen específica del producto
-            binding.ivProduct.setImageResource(product.imageResId)
-
-            binding.root.setOnClickListener {
-                onAddToCart(product)
-            }
-        }
+    fun updateProducts(newProducts: List<Product>) {
+        products = newProducts
+        notifyDataSetChanged()
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ProductViewHolder {
@@ -35,7 +22,7 @@ class ProductAdapter(
             parent,
             false
         )
-        return ProductViewHolder(binding, onAddToCart)
+        return ProductViewHolder(binding)
     }
 
     override fun onBindViewHolder(holder: ProductViewHolder, position: Int) {
@@ -43,4 +30,27 @@ class ProductAdapter(
     }
 
     override fun getItemCount() = products.size
+
+    inner class ProductViewHolder(
+        private val binding: ItemProductBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        init {
+            binding.root.setOnClickListener {
+                val position = adapterPosition
+                if (position != RecyclerView.NO_POSITION) {
+                    onProductClick(products[position])
+                }
+            }
+        }
+
+        fun bind(product: Product) {
+            binding.apply {
+                tvProductName.text = product.name
+                tvProductDescription.text = product.description
+                tvProductPrice.text = "$ ${product.price}"
+                ivProduct.setImageResource(product.imageResId)
+            }
+        }
+    }
 } 

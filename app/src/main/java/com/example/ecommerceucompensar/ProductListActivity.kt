@@ -12,16 +12,23 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.ecommerceucompensar.data.AppDatabase
+import com.example.ecommerceucompensar.data.Product
+import com.example.ecommerceucompensar.data.ProductRepository
 import com.example.ecommerceucompensar.databinding.ActivityProductListBinding
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 class ProductListActivity : AppCompatActivity() {
     private lateinit var binding: ActivityProductListBinding
     private lateinit var adapter: ProductAdapter
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var productRepository: ProductRepository
     private val locationPermissionRequest = 1
     private val TAG = "ProductListActivity"
     private var isLocationDialogShown = false
@@ -31,11 +38,61 @@ class ProductListActivity : AppCompatActivity() {
         binding = ActivityProductListBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Initialize database and repository
+        val database = AppDatabase.getDatabase(applicationContext)
+        productRepository = ProductRepository(database.productDao())
+
         setupRecyclerView()
         setupCartButton()
         setupLocationButton()
+        setupLogoutButton()
+        loadInitialData()
         
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+    }
+
+    private fun loadInitialData() {
+        lifecycleScope.launch {
+            // Check if database is empty
+            val products = productRepository.allProducts.collect { productList ->
+                if (productList.isEmpty()) {
+                    // Insert initial products if database is empty
+                    val initialProducts = listOf(
+                        Product(
+                            name = "Smartphone",
+                            description = "Último modelo con cámara de alta resolución",
+                            price = 999.99,
+                            imageResId = R.drawable.smartphone
+                        ),
+                        Product(
+                            name = "Laptop",
+                            description = "Procesador de última generación",
+                            price = 1299.99,
+                            imageResId = R.drawable.laptop
+                        ),
+                        Product(
+                            name = "Smart TV",
+                            description = "4K HDR con Android TV",
+                            price = 799.99,
+                            imageResId = R.drawable.smartv
+                        ),
+                        Product(
+                            name = "Auriculares Inalámmbricos",
+                            description = "Cancelación de ruido activa",
+                            price = 199.99,
+                            imageResId = R.drawable.auriculares
+                        ),
+                        Product(
+                            name = "Smartwatch",
+                            description = "Monitoreo de salud y fitness",
+                            price = 299.99,
+                            imageResId = R.drawable.smartwatch
+                        )
+                    )
+                    productRepository.insertProducts(initialProducts)
+                }
+            }
+        }
     }
 
     private fun setupLocationButton() {
@@ -212,53 +269,32 @@ class ProductListActivity : AppCompatActivity() {
     }
 
     private fun setupRecyclerView() {
-        val products = listOf(
-            Product(
-                id = 1,
-                name = "Smartphone",
-                description = "Último modelo con cámara de alta resolución",
-                price = 999.99,
-                imageResId = R.drawable.smartphone
-            ),
-            Product(
-                id = 2,
-                name = "Laptop",
-                description = "Procesador de última generación",
-                price = 1299.99,
-                imageResId = R.drawable.laptop
-            ),
-            Product(
-                id = 3,
-                name = "Smart TV",
-                description = "4K HDR con Android TV",
-                price = 799.99,
-                imageResId = R.drawable.smartv
-            ),
-            Product(
-                id = 4,
-                name = "Auriculares Inalámbricos",
-                description = "Cancelación de ruido activa",
-                price = 199.99,
-                imageResId = R.drawable.auriculares
-            ),
-            Product(
-                id = 5,
-                name = "Smartwatch",
-                description = "Monitoreo de salud y fitness",
-                price = 299.99,
-                imageResId = R.drawable.smartwatch
-            )
-        )
-
-        adapter = ProductAdapter(products) { product ->
-            val intent = Intent(this, CartActivity::class.java)
-            intent.putExtra("product", product)
-            startActivity(intent)
+        adapter = ProductAdapter(emptyList()) { product ->
+            try {
+                val intent = Intent(this, CartActivity::class.java).apply {
+                    putExtra("product_id", product.id)
+                    putExtra("product_name", product.name)
+                    putExtra("product_description", product.description)
+                    putExtra("product_price", product.price)
+                    putExtra("product_image", product.imageResId)
+                }
+                startActivity(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error al abrir CartActivity: ${e.message}")
+                Toast.makeText(this, "Error al abrir el carrito", Toast.LENGTH_SHORT).show()
+            }
         }
 
         binding.rvProducts.apply {
             layoutManager = LinearLayoutManager(this@ProductListActivity)
             adapter = this@ProductListActivity.adapter
+        }
+
+        // Observe products from database
+        lifecycleScope.launch {
+            productRepository.allProducts.collect { products ->
+                adapter.updateProducts(products)
+            }
         }
     }
 
@@ -266,6 +302,35 @@ class ProductListActivity : AppCompatActivity() {
         binding.btnCart.setOnClickListener {
             startActivity(Intent(this, CartActivity::class.java))
         }
+    }
+
+    private fun setupLogoutButton() {
+        binding.btnLogout.setOnClickListener {
+            showLogoutConfirmationDialog()
+        }
+    }
+
+    private fun showLogoutConfirmationDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Cerrar Sesión")
+            .setMessage("¿Estás seguro que deseas cerrar sesión?")
+            .setPositiveButton("Sí") { _, _ ->
+                performLogout()
+            }
+            .setNegativeButton("No", null)
+            .show()
+    }
+
+    private fun performLogout() {
+        // Limpiar el carrito
+        CartManager.clearCart()
+        
+        // Redirigir al login
+        val intent = Intent(this, LoginActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
+        finish()
     }
 
     override fun onResume() {
